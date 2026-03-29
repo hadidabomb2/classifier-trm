@@ -1,0 +1,48 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# ── Virtual environments ───────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+.env
+
+# ── HuggingFace / model artefacts ─────────────────────────────────────────────
+training/.cache/
+training/data/raw/
+training/data/processed/
+*.safetensors
+*.bin
+*.pt
+*.onnx
+
+# ── Training outputs & checkpoints ────────────────────────────────────────────
+training/outputs/
+training/checkpoints/
+
+# ── Datadumps are large — keep raw downloads out of git ───────────────────────
+# Comment this line out if you want to version-control your merged datadumps.
+training/data/datadumps/
+
+# ── OS noise ──────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Editors ───────────────────────────────────────────────────────────────────
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+runs/
+
+# ── Jupyter ───────────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb

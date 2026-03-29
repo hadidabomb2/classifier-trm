@@ -1,0 +1,23 @@
+# TRM Training — Python dependencies
+#
+# Install:  pip install -r requirements.txt
+# Tested against Python 3.10 / 3.11 / 3.12
+#
+# Core ML
+torch>=2.2.0
+transformers>=4.46.0
+datasets>=3.0.0
+accelerate>=0.34.0
+tokenizers>=0.20.0
+safetensors>=0.4.3
+
+# Metrics
+scikit-learn>=1.4.0
+numpy>=1.26.0
+
+# Progress + CLI
+tqdm>=4.66.0
+
+# Optional: experiment tracking (uncomment to enable)
+# wandb>=0.17.0
+# tensorboard>=2.17.0

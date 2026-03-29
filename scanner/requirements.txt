@@ -1,0 +1,17 @@
+# ── TRM Screen Scanner dependencies ──────────────────────────────────────────
+
+# Screen capture (fast native screenshot, < 5 ms)
+mss>=9.0.1
+
+# Image handling
+Pillow>=10.0.0
+
+# Array conversion (used by OCR backends)
+numpy>=1.26.0
+
+# ── OCR — cross-platform ONNX engine (downloads ~20 MB models on first use) ──
+rapidocr-onnxruntime>=1.3.0
+
+# ── Already installed if you ran training/requirements.txt ────────────────────
+# transformers>=4.46.0
+# torch>=2.2.0
