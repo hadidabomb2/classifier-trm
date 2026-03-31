@@ -329,6 +329,14 @@ class DatasetBuilder:
             f"{source.hf_path}__{source.hf_name or 'default'}"
             f"__{source.split}__{source.text_column}"
         )
+        # Include label_column + label_mapping so sources that read the same HF
+        # split but map to different TRM labels each get their own cache file.
+        label_sig = json.dumps(
+            {"col": source.label_column,
+             "map": {str(k): v for k, v in source.label_mapping.items()}},
+            sort_keys=True,
+        )
+        key += "__" + hashlib.md5(label_sig.encode("utf-8"), usedforsecurity=False).hexdigest()[:8]
         # Also hash any extra kwargs (e.g. data_dir) that further disambiguate the source.
         if source.hf_kwargs:
             kwargs_hash = hashlib.md5(

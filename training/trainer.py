@@ -21,6 +21,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List
 
+import torch
 import numpy as np
 from datasets import Dataset, DatasetDict
 from sklearn.metrics import accuracy_score, classification_report, f1_score
@@ -84,6 +85,21 @@ class TRMTrainer:
             The fitted HuggingFace Trainer (inspect .state for metrics & log history).
         """
         seed_everything(self.train_cfg.seed)
+
+        # Auto-enable fp16 when a CUDA GPU is available.
+        if torch.cuda.is_available():
+            props = torch.cuda.get_device_properties(0)
+            logger.info(
+                "GPU: %s  (%.0f MB VRAM)  —  fp16=%s",
+                props.name,
+                props.total_memory / 1_048_576,
+                "enabled" if torch.cuda.is_available() and not self.train_cfg.fp16 else "already set",
+            )
+            if not self.train_cfg.fp16:
+                self.train_cfg.fp16 = True
+                logger.info("Auto-enabled fp16 mixed precision")
+        else:
+            logger.info("No CUDA GPU detected — training on %s", "MPS" if torch.backends.mps.is_available() else "CPU")
 
         dataset_dict = self._dicts_to_dataset_dict(splits)
         tokenised    = self._tokenise(dataset_dict)
@@ -163,10 +179,11 @@ class TRMTrainer:
 
         acc       = float(accuracy_score(labels, preds))
         macro_f1  = float(f1_score(labels, preds, average="macro",  zero_division=0))
-        per_class = f1_score(labels, preds, average=None, zero_division=0)
+        all_label_ids = list(range(len(self.cfg.labels)))
+        per_class = f1_score(labels, preds, average=None, zero_division=0, labels=all_label_ids)
 
         metrics: Dict[str, float] = {"accuracy": acc, "f1": macro_f1}
-        label_names = [self.id_to_label[i] for i in range(len(self.cfg.labels))]
+        label_names = [self.id_to_label[i] for i in all_label_ids]
         for name, score in zip(label_names, per_class):
             metrics[f"f1_{name.lower()}"] = float(score)
 
@@ -179,10 +196,12 @@ class TRMTrainer:
 
         pred_output = trainer.predict(test_dataset)
         preds       = np.argmax(pred_output.predictions, axis=-1)
-        label_names = [self.id_to_label[i] for i in range(len(self.cfg.labels))]
+        label_ids   = list(range(len(self.cfg.labels)))
+        label_names = [self.id_to_label[i] for i in label_ids]
         report      = classification_report(
             pred_output.label_ids,
             preds,
+            labels=label_ids,
             target_names=label_names,
             zero_division=0,
         )
@@ -209,6 +228,7 @@ class TRMTrainer:
             warmup_steps=warmup_steps,
             fp16=cfg.fp16,
             gradient_accumulation_steps=cfg.gradient_accumulation_steps,
+            max_grad_norm=cfg.max_grad_norm,
             eval_strategy=cfg.eval_strategy,
             save_strategy=cfg.save_strategy,
             load_best_model_at_end=cfg.load_best_model_at_end,

@@ -15,17 +15,17 @@ Pipeline stages (in order):
 
 CLI usage::
 
-    python -m training.orchestrator --trm content-quality
-    python -m training.orchestrator --trm content-quality --steps data,train
-    python -m training.orchestrator --trm content-quality --force-rebuild
-    python -m training.orchestrator --trm content-quality --checkpoint path/to/ckpt
+    python -m training.orchestrator --trm impact
+    python -m training.orchestrator --trm impact --steps data,train
+    python -m training.orchestrator --trm flavor --force-rebuild
+    python -m training.orchestrator --trm lifespan --checkpoint path/to/ckpt
 
 Programmatic usage::
 
     from training.orchestrator import Orchestrator
     from training.config import TRMRegistry
 
-    cfg  = TRMRegistry.get("content-quality")
+    cfg  = TRMRegistry.get("impact")
     orch = Orchestrator(cfg)
     orch.run_pipeline(steps=["data", "train", "eval", "export"])
 """
@@ -194,12 +194,12 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--trm",
         type=str,
-        default="content-quality",
+        default="impact",
         metavar="NAME",
         help=(
             "Name of the TRM to train.\n"
             f"Registered TRMs: {TRMRegistry.list_names()}\n"
-            "(default: content-quality)"
+            "(default: impact)"
         ),
     )
     parser.add_argument(

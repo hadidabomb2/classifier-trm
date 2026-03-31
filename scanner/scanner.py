@@ -15,6 +15,7 @@ import time
 import argparse
 import traceback
 from pathlib import Path
+from typing import Dict
 
 from .config import ScannerConfig
 from .capture import ScreenCapture
@@ -36,8 +37,18 @@ class Scanner:
         print("[scanner] Loading OCR…")
         self._ocr = OCRExtractor(language=config.ocr_language, psm=config.ocr_psm)
 
-        print(f"[scanner] Loading model from {config.model_path}")
-        self._classifier = ContentClassifier(model_path=config.model_path, device=config.device)
+        print(f"[scanner] Loading models…")
+        self._classifiers: Dict[str, ContentClassifier] = {}
+        trms = list(config.model_paths.keys())
+        if config.enabled_trms is not None:
+            trms = [t for t in trms if t in config.enabled_trms]
+        for trm_name in trms:
+            model_path = config.model_paths[trm_name]
+            if model_path.exists():
+                print(f"[scanner] Loading {trm_name} model from {model_path}")
+                self._classifiers[trm_name] = ContentClassifier(model_path=model_path, device=config.device)
+            else:
+                print(f"[scanner] WARNING: {trm_name} model not found at {model_path} — skipping")
 
         print("[scanner] Building overlay…")
         self._overlay = ScannerOverlay(config, self._queue)
@@ -72,28 +83,35 @@ class Scanner:
 
                 if chars < self._cfg.min_text_chars:
                     result = {
-                        "label": "UNCERTAIN", "score": 0.0, "all_scores": {},
+                        "trm_results": {},
                         "status": f"Too little text ({chars} chars)",
                     }
                 elif not self._dedup.is_new(text):
                     print("[scan] Duplicate frame — skipping.", flush=True)
                     result = None
                 else:
-                    result = self._classifier.classify(text)
-                    if result["score"] < self._cfg.confidence_threshold:
-                        result["label"] = "UNCERTAIN"
-                    n_chunks = result.get("n_chunks", 1)
-                    result["status"] = f"{chars} chars · {n_chunks} chunk(s)"
-                    print(
-                        f"[scan] → {result['label']} {result['score']:.1%}  "
-                        + "  ".join(f"{k}:{v:.0%}" for k, v in result["all_scores"].items()),
-                        flush=True,
-                    )
+                    trm_results: Dict[str, Dict] = {}
+                    n_chunks = 1
+                    for trm_name, clf in self._classifiers.items():
+                        r = clf.classify(text)
+                        if r["score"] < self._cfg.confidence_threshold:
+                            r["label"] = "UNCERTAIN"
+                        trm_results[trm_name] = r
+                        n_chunks = max(n_chunks, r.get("n_chunks", 1))
+                        print(
+                            f"[scan] {trm_name:8s} → {r['label']} {r['score']:.1%}  "
+                            + "  ".join(f"{k}:{v:.0%}" for k, v in r["all_scores"].items()),
+                            flush=True,
+                        )
+                    result = {
+                        "trm_results": trm_results,
+                        "status": f"{chars} chars · {n_chunks} chunk(s)",
+                    }
 
             except Exception as exc:
                 traceback.print_exc()
                 result = {
-                    "label": "UNCERTAIN", "score": 0.0, "all_scores": {},
+                    "trm_results": {},
                     "status": f"Error: {exc}",
                 }
 
@@ -131,7 +149,8 @@ class Scanner:
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="scanner", description="TRM real-time screen scanner.")
-    parser.add_argument("--model",       type=Path,  default=None)
+    parser.add_argument("--models-dir", type=Path, default=None,
+                        help="Base directory containing impact/flavor/purpose/lifespan subdirs")
     parser.add_argument("--region",      type=int,   nargs=4, metavar=("L","T","W","H"), default=None,
                         help="Capture region: left top width height")
     parser.add_argument("--interval",    type=int,   default=1500, metavar="MS")
@@ -147,8 +166,11 @@ def main() -> None:
         confidence_threshold=args.threshold,
         show_region=args.show_region,
     )
-    if args.model is not None:
-        cfg.model_path = args.model
+    if args.models_dir is not None:
+        cfg.model_paths = {
+            name: args.models_dir / name
+            for name in cfg.model_paths
+        }
     if args.region is not None:
         cfg.capture_region = tuple(args.region)
     if args.gpu is not None:

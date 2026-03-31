@@ -24,19 +24,98 @@ if TYPE_CHECKING:
 # ── Label styling ─────────────────────────────────────────────────────────────
 
 _LABEL_META: Dict[str, Dict] = {
-    "CLEAN":     {"color": "#2ecc71", "icon": "✓"},
-    "SLOP":      {"color": "#f39c12", "icon": "~"},
-    "CRINGE":    {"color": "#e67e22", "icon": "!"},
-    "BOT":       {"color": "#e74c3c", "icon": "⚠"},
-    "STUPID":    {"color": "#c0392b", "icon": "✗"},
-    "UNCERTAIN": {"color": "#7f8c8d", "icon": "?"},
+    # ── impact
+    "STATIC":         {"color": "#7f8c8d", "icon": "–",  "tip": "Dead-end text — leaves you exactly where you started."},
+    "CLARIFYING":     {"color": "#3498db", "icon": "◎",  "tip": "Removes confusion and simplifies a messy idea."},
+    "PROVOCATIVE":    {"color": "#e67e22", "icon": "!",  "tip": "Makes you angry, excited, or defensive."},
+    "TRANSFORMATIVE": {"color": "#2ecc71", "icon": "✦",  "tip": "Actually changes how you think or behave after reading."},
+    "TOXIC":          {"color": "#e74c3c", "icon": "☠",  "tip": "Spreads negativity, lies, or mental exhaustion."},
+    # ── flavor
+    "RAW":            {"color": "#e67e22", "icon": "●",  "tip": "Unfiltered, messy thoughts — journals, voice notes."},
+    "PROCESSED":      {"color": "#95a5a6", "icon": "▣",  "tip": "Clean and professional but soulless — press releases, corp speak."},
+    "SPICY":          {"color": "#e74c3c", "icon": "~",  "tip": "Controversial, edgy, or intentionally bold."},
+    "NOURISHING":     {"color": "#27ae60", "icon": "♦",  "tip": "Deep, thoughtful, and healthy for your perspective."},
+    "EMPTY_CALORIES": {"color": "#7f8c8d", "icon": "○",  "tip": "Entertaining but mindless — gossip, clickbait, filler."},
+    # ── purpose
+    "DIRECTIVE":      {"color": "#3498db", "icon": "▶",  "tip": "Telling you what to do — manuals, instructions, commands."},
+    "PERFORMATIVE":   {"color": "#9b59b6", "icon": "★",  "tip": "Showing off or building a brand — CVs, bios, marketing."},
+    "SPECULATIVE":    {"color": "#f39c12", "icon": "?",  "tip": "Asking 'What if?' — philosophy, theories, sci-fi."},
+    "CONFESSIONAL":   {"color": "#e91e8c", "icon": "♡",  "tip": "Revealing a personal truth — memoirs, diary entries, letters."},
+    "DECORATIVE":     {"color": "#95a5a6", "icon": "◌",  "tip": "Just there to look pretty — filler, greeting-card fluff."},
+    # ── lifespan
+    "INSTANT":        {"color": "#e74c3c", "icon": "⚡",  "tip": "Expires in seconds — OTPs, 'I'm here', quick reactions."},
+    "DAILY":          {"color": "#f39c12", "icon": "↻",  "tip": "Useless by tomorrow — breaking news, weather, scores."},
+    "SEASONAL":       {"color": "#2ecc71", "icon": "◐",  "tip": "Good for a few months — trend reports, local reviews."},
+    "DECADAL":        {"color": "#3498db", "icon": "◑",  "tip": "Relevant for years — career advice, how-to guides, laws."},
+    "EVERGREEN":      {"color": "#27ae60", "icon": "∞",  "tip": "Never dies — encyclopedic knowledge, timeless wisdom."},
+    # ── fallback
+    "UNCERTAIN":      {"color": "#7f8c8d", "icon": "?",  "tip": "Confidence too low to classify reliably."},
 }
 
-_BG_DARK = "#1e1e2e"
-_BG_BAR  = "#13131f"
-_FG_MAIN = "#cdd6f4"
-_FG_DIM  = "#585b70"
-_FONT_UI = ("Segoe UI", 9)
+_BG_DARK    = "#1e1e2e"
+_BG_BAR     = "#13131f"
+_BG_TOOLTIP = "#2a2a3e"
+_FG_MAIN    = "#cdd6f4"
+_FG_DIM     = "#585b70"
+_FONT_UI    = ("Segoe UI", 11)
+
+
+# ── Tooltip ───────────────────────────────────────────────────────────────────
+
+class _Tooltip:
+    """Lightweight hover tooltip that follows the label's live text."""
+
+    _DELAY_MS = 400   # ms before popup appears
+    _PAD      = 6
+
+    def __init__(self, widget: tk.Widget, text_fn) -> None:
+        """*text_fn* is a zero-arg callable returning the tooltip string."""
+        self._widget  = widget
+        self._text_fn = text_fn
+        self._tip: Optional[tk.Toplevel] = None
+        self._after_id: Optional[str]   = None
+        widget.bind("<Enter>", self._schedule)
+        widget.bind("<Leave>", self._cancel)
+
+    def _schedule(self, _event: tk.Event) -> None:
+        self._cancel(None)
+        self._after_id = self._widget.after(self._DELAY_MS, self._show)
+
+    def _cancel(self, _event) -> None:
+        if self._after_id is not None:
+            self._widget.after_cancel(self._after_id)
+            self._after_id = None
+        if self._tip is not None:
+            try:
+                self._tip.destroy()
+            except tk.TclError:
+                pass
+            self._tip = None
+
+    def _show(self) -> None:
+        text = self._text_fn()
+        if not text:
+            return
+        widget = self._widget
+        x = widget.winfo_rootx() + widget.winfo_width() + 6
+        y = widget.winfo_rooty()
+        self._tip = tk.Toplevel(widget)
+        self._tip.overrideredirect(True)
+        self._tip.attributes("-topmost", True)
+        lbl = tk.Label(
+            self._tip, text=text, justify="left",
+            bg=_BG_TOOLTIP, fg=_FG_MAIN,
+            font=("Segoe UI", 10), wraplength=260,
+            padx=self._PAD, pady=self._PAD // 2,
+        )
+        lbl.pack()
+        self._tip.update_idletasks()
+        # Nudge left if it would bleed off the right edge of the screen
+        sw = widget.winfo_screenwidth()
+        tw = self._tip.winfo_width()
+        if x + tw > sw:
+            x = widget.winfo_rootx() - tw - 6
+        self._tip.geometry(f"+{x}+{y}")
 
 # A colour that will be made fully transparent on Windows.
 # Must not appear in any real UI element.
@@ -185,29 +264,47 @@ class ScannerOverlay:
         content = tk.Frame(parent, bg=_BG_DARK)
         content.pack(fill="both", expand=True, padx=10, pady=6)
 
-        self._label_var = tk.StringVar(value="SCANNING…")
-        self._label_widget = tk.Label(
-            content, textvariable=self._label_var,
-            font=("Segoe UI", 24, "bold"), bg=_BG_DARK, fg=_FG_DIM,
-        )
-        self._label_widget.pack()
+        self._trm_rows: Dict[str, Dict] = {}
+        for trm_name in ("impact", "flavor", "purpose", "lifespan"):
+            row = tk.Frame(content, bg=_BG_DARK)
+            row.pack(fill="x", pady=3)
 
-        self._score_var = tk.StringVar(value="")
-        tk.Label(content, textvariable=self._score_var,
-                 font=("Segoe UI", 10), bg=_BG_DARK, fg=_FG_DIM).pack()
+            tk.Label(
+                row, text=trm_name.upper(), width=8, anchor="w",
+                font=("Segoe UI", 10), bg=_BG_DARK, fg=_FG_DIM,
+            ).pack(side="left")
 
-        self._all_var = tk.StringVar(value="")
-        tk.Label(
-            content, textvariable=self._all_var,
-            font=("Segoe UI", 8), bg=_BG_DARK, fg=_FG_DIM,
-            wraplength=self._cfg.overlay_width - 20, justify="center",
-        ).pack(pady=(4, 0))
+            label_var = tk.StringVar(value="…")
+            label_widget = tk.Label(
+                row, textvariable=label_var,
+                font=("Segoe UI", 13, "bold"), bg=_BG_DARK, fg=_FG_DIM, anchor="w",
+                cursor="question_arrow",
+            )
+            label_widget.pack(side="left", fill="x", expand=True)
+
+            score_var = tk.StringVar(value="")
+            tk.Label(
+                row, textvariable=score_var,
+                font=("Segoe UI", 10), bg=_BG_DARK, fg=_FG_DIM, width=5, anchor="e",
+            ).pack(side="right")
+
+            row_data: Dict = {
+                "label_var":     label_var,
+                "label_widget":  label_widget,
+                "score_var":     score_var,
+                "current_label": "",
+            }
+            _Tooltip(
+                label_widget,
+                lambda rd=row_data: _LABEL_META.get(rd["current_label"], {}).get("tip", ""),
+            )
+            self._trm_rows[trm_name] = row_data
 
     def _build_status_bar(self, parent: tk.Tk) -> None:
         self._status_var = tk.StringVar(value="Initialising…")
         tk.Label(
             parent, textvariable=self._status_var,
-            bg=_BG_BAR, fg=_FG_DIM, font=("Segoe UI", 7), anchor="w",
+            bg=_BG_BAR, fg=_FG_DIM, font=("Segoe UI", 9), anchor="w",
         ).pack(fill="x", side="bottom", padx=4)
 
     # ── Queue polling ─────────────────────────────────────────────────────────
@@ -221,21 +318,24 @@ class ScannerOverlay:
         self._root.after(100, self._poll)
 
     def _apply_result(self, result: Dict) -> None:
-        label      = result.get("label", "UNCERTAIN")
-        score      = result.get("score", 0.0)
-        all_scores = result.get("all_scores", {})
-        status     = result.get("status", "")
+        trm_results = result.get("trm_results", {})
+        status      = result.get("status", "")
 
-        meta  = _LABEL_META.get(label, _LABEL_META["UNCERTAIN"])
-        self._label_var.set(f"{meta['icon']}  {label}")
-        self._label_widget.configure(fg=meta["color"])
-        self._score_var.set(f"{score:.1%} confidence" if score else "")
-
-        if all_scores:
-            parts = [f"{k}:{v:.0%}" for k, v in sorted(all_scores.items(), key=lambda x: -x[1])]
-            self._all_var.set("  ".join(parts))
-        else:
-            self._all_var.set("")
+        for trm_name, row in self._trm_rows.items():
+            r     = trm_results.get(trm_name)
+            if r:
+                label = r.get("label", "UNCERTAIN")
+                score = r.get("score", 0.0)
+                meta  = _LABEL_META.get(label, _LABEL_META["UNCERTAIN"])
+                row["current_label"] = label
+                row["label_var"].set(f"{meta['icon']}  {label}")
+                row["label_widget"].configure(fg=meta["color"])
+                row["score_var"].set(f"{score:.0%}")
+            else:
+                row["current_label"] = ""
+                row["label_var"].set("–")
+                row["label_widget"].configure(fg=_FG_DIM)
+                row["score_var"].set("")
 
         if status:
             self._status_var.set(f"  {status}")
@@ -252,11 +352,10 @@ class ScannerOverlay:
         self._pause_btn.configure(text="▶" if self._paused else "⏸")
         if self._paused:
             self._status_var.set("  Paused")
-            self._label_var.set("⏸  PAUSED")
-            self._label_widget.configure(fg=_FG_DIM)
-            self._score_var.set("")
-            self._all_var.set("")
-
+            for row in self._trm_rows.values():
+                row["label_var"].set("⏸  PAUSED")
+                row["label_widget"].configure(fg=_FG_DIM)
+                row["score_var"].set("")
     @property
     def paused(self) -> bool:
         return self._paused

@@ -7,26 +7,50 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Model path — points at the exported content-quality model
+# Model paths — one output directory per TRM
 # ─────────────────────────────────────────────────────────────────────────────
-_DEFAULT_MODEL_PATH = (
-    Path(__file__).parent.parent / "training" / "outputs" / "content-quality"
-)
+_OUTPUTS_DIR = Path(__file__).parent.parent / "training" / "outputs"
+
+_DEFAULT_MODEL_PATHS: Dict[str, Path] = {
+    "impact":   _OUTPUTS_DIR / "impact",
+    "flavor":   _OUTPUTS_DIR / "flavor",
+    "purpose":  _OUTPUTS_DIR / "purpose",
+    "lifespan": _OUTPUTS_DIR / "lifespan",
+}
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Label presentation
+# Label presentation  (hex_color, display_icon)
 # ─────────────────────────────────────────────────────────────────────────────
-# Each label maps to (hex_color, display_icon)
-LABEL_STYLE: dict[str, tuple[str, str]] = {
-    "CLEAN":     ("#27ae60", "✓"),
-    "SLOP":      ("#f39c12", "~"),
-    "CRINGE":    ("#e67e22", "!"),
-    "BOT":       ("#e74c3c", "⚠"),
-    "STUPID":    ("#c0392b", "✗"),
-    "UNCERTAIN": ("#7f8c8d", "?"),
+LABEL_META: dict[str, tuple[str, str]] = {
+    # ── impact ────────────────────────────────────────────────────────────
+    "STATIC":         ("#7f8c8d", "–"),
+    "CLARIFYING":     ("#3498db", "◎"),
+    "PROVOCATIVE":    ("#e67e22", "!"),
+    "TRANSFORMATIVE": ("#2ecc71", "✦"),
+    "TOXIC":          ("#e74c3c", "☠"),
+    # ── flavor ────────────────────────────────────────────────────────────
+    "RAW":            ("#e67e22", "●"),
+    "PROCESSED":      ("#95a5a6", "▣"),
+    "SPICY":          ("#e74c3c", "~"),
+    "NOURISHING":     ("#27ae60", "♦"),
+    "EMPTY_CALORIES": ("#7f8c8d", "○"),
+    # ── purpose ───────────────────────────────────────────────────────────
+    "DIRECTIVE":      ("#3498db", "▶"),
+    "PERFORMATIVE":   ("#9b59b6", "★"),
+    "SPECULATIVE":    ("#f39c12", "?"),
+    "CONFESSIONAL":   ("#e91e8c", "♡"),
+    "DECORATIVE":     ("#95a5a6", "◌"),
+    # ── lifespan ──────────────────────────────────────────────────────────
+    "INSTANT":        ("#e74c3c", "⚡"),
+    "DAILY":          ("#f39c12", "↻"),
+    "SEASONAL":       ("#2ecc71", "◐"),
+    "DECADAL":        ("#3498db", "◑"),
+    "EVERGREEN":      ("#27ae60", "∞"),
+    # ── fallback ──────────────────────────────────────────────────────────
+    "UNCERTAIN":      ("#7f8c8d", "?"),
 }
 
 
@@ -56,7 +80,7 @@ class ScannerConfig:
         3 = fully automatic (good for general screens)
         6 = assume a single block of text (good if you pin a chat window)
     """
-    model_path: Path                              = _DEFAULT_MODEL_PATH
+    model_paths: Dict[str, Path]                   = field(default_factory=lambda: dict(_DEFAULT_MODEL_PATHS))
     capture_region: Optional[Tuple[int,int,int,int]] = None
     refresh_interval_ms: int                      = 1_500
     min_text_chars: int                           = 30
@@ -66,9 +90,12 @@ class ScannerConfig:
     ocr_psm: int                                  = 3
     device: int                                   = -1     # -1=CPU, 0=first GPU
 
+    # Set to a subset of TRM names to only load those models (None = all four)
+    enabled_trms: Optional[tuple] = None
+
     # Overlay window
-    overlay_width: int                            = 330
-    overlay_height: int                           = 185
+    overlay_width: int                            = 420
+    overlay_height: int                           = 250
     overlay_alpha: float                          = 0.93   # 0.0 transparent – 1.0 opaque
     overlay_x: int                                = 40
     overlay_y: int                                = 40
